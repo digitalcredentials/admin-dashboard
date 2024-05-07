@@ -168,3 +168,6 @@ build
 .DS_Store
 
 # End of https://www.toptal.com/developers/gitignore/api/node,visualstudiocode
+
+compose.yaml
+compose-test.yaml

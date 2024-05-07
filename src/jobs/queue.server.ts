@@ -27,7 +27,8 @@ declare global {
 }
 const registeredQueues = global.__registeredQueues || (global.__registeredQueues = {});
 
-const flowProducer = new FlowProducer({ connection });
+let flowProducer;
+let emailQueue;
 
 /**
  *
@@ -37,9 +38,7 @@ const flowProducer = new FlowProducer({ connection });
 export function registerQueue<T>(name: string, processor: Processor<T>) {
     if (!registeredQueues[name]) {
         const queue = new Queue(name, { connection });
-        const queueEvents = new QueueEvents(name, {
-            connection,
-        });
+        const queueEvents = new QueueEvents(name, { connection });
         const worker = new Worker<T>(name, processor, {
             connection,
             lockDuration: 1000 * 60 * 15,
@@ -65,50 +64,8 @@ export type Email = {
     html?: string;
 };
 
-// This will run in the same thread as the main app
-// if this is more processor intensive then we should offload this to a background process
-/*
-"If we pass a path to a javascript file instead of a function to 
-the registerQueue function, BullMQ will spawn a new process to run the file. 
-These are called sandboxed processors."
-*/
-export const emailQueue = registerQueue('email', async (job: Job<Email>) => {
-    console.log('///emailQueue job', job);
-
-    const { to, from, subject, text, html, credentialId } = job.data;
-
-    await payload.sendEmail({
-        to,
-        subject,
-        text,
-        html,
-        from:
-            from || process.env.EMAIL_FROM || 'Learning Economy <beestontaylor@learningeconomy.io>',
-    });
-
-    if (credentialId) {
-        await payload.update({
-            collection: 'credential',
-            id: credentialId,
-            data: { status: CREDENTIAL_STATUS.SENT },
-        });
-    }
-});
-
-export const emailsFinishedQueue = registerQueue(
-    'emailsFinished',
-    async (job: Job<{ batchId: string }>) => {
-        console.log('///emailsFinishedQueu job', job);
-
-        return payload.update({
-            collection: 'credential-batch',
-            id: job.data.batchId,
-            data: { status: CREDENTIAL_BATCH_STATUS.SENT },
-        });
-    }
-);
-
 export const sendEmails = async (batchId: string, emails: Email[]) => {
+    initializeQueues();
     return flowProducer.add({
         name: `send-emails-for-${batchId}`,
         queueName: 'emailsFinished',
@@ -120,3 +77,62 @@ export const sendEmails = async (batchId: string, emails: Email[]) => {
         })),
     });
 };
+
+export const sendSingleEmail = async (email: Email) => {
+    initializeQueues();
+    emailQueue.add('send-test-email', email);
+}
+
+const initializeQueues = () => {
+    if (!flowProducer) {
+        flowProducer = new FlowProducer({ connection });
+    }
+
+    if (!emailQueue) {
+        // This will run in the same thread as the main app
+        // if this is more processor intensive then we should offload this to a background process
+        /*
+        "If we pass a path to a javascript file instead of a function to 
+        the registerQueue function, BullMQ will spawn a new process to run the file. 
+        These are called sandboxed processors."
+        */
+        emailQueue = registerQueue('email', async (job: Job<Email>) => {
+            console.log('///emailQueue job', job);
+
+            const { to, from, subject, text, html, credentialId } = job.data;
+
+            await payload.sendEmail({
+                to,
+                subject,
+                text,
+                html,
+                from:
+                    from || process.env.EMAIL_FROM || 'Digital Credentials Consortium Demo Isser <DCC-support@mit.edu>',
+            });
+
+            if (credentialId) {
+                await payload.update({
+                    collection: 'credential',
+                    id: credentialId,
+                    data: { status: CREDENTIAL_STATUS.SENT },
+                });
+            }
+        });
+    }
+
+    if (!registeredQueues['emailsFinished']) {
+        registerQueue(
+            'emailsFinished',
+            async (job: Job<{ batchId: string }>) => {
+                console.log('///emailsFinishedQueu job', job);
+
+                return payload.update({
+                    collection: 'credential-batch',
+                    id: job.data.batchId,
+                    data: { status: CREDENTIAL_BATCH_STATUS.SENT },
+                });
+            }
+        );
+    }
+
+}

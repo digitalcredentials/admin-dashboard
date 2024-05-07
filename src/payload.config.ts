@@ -27,6 +27,11 @@ import DashboardRedirect from './components/DashboardRedirect';
 import AccountSettings from './components/AccountSettings';
 
 export default buildConfig({
+    rateLimit: {
+        max: 100000, // limit each IP per windowMs
+        trustProxy: true,
+        window: 2 * 60 * 1000, // 2 minutes
+      },
     email: {
         transportOptions: {
             host: process.env.SMTP_HOST,

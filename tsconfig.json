@@ -10,6 +10,7 @@
     ],
     "allowJs": true,
     "strict": false,
+    "noEmitOnError": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist",

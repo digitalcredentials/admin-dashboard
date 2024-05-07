@@ -2,7 +2,9 @@ import express from "express";
 import payload from "payload";
 import path from "path";
 
-require("dotenv").config();
+//require("dotenv").config();
+import 'dotenv/config'
+
 const app = express();
 
 app.use("/assets", express.static(path.resolve(__dirname, "./assets")));

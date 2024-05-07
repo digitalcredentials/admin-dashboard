@@ -1,30 +1,26 @@
-FROM node:18.8-alpine as base
+FROM node:18.8-alpine as builder
 
-FROM base as builder
-
-WORKDIR /home/node/app
+WORKDIR /home/node
+COPY package*.json ./
 
 COPY . .
 
-RUN npm i -g pnpm
-RUN pnpm i
+RUN yarn install
+RUN yarn build
 
-RUN pnpm build
-
-FROM base as runtime
+FROM node:18.8-alpine as runtime
 
 ENV NODE_ENV=production
 ENV PAYLOAD_CONFIG_PATH=dist/payload.config.js
 
-WORKDIR /home/node/app
-COPY package.json ./
+WORKDIR /home/node
+COPY package*.json ./
 
-RUN npm i -g pnpm
-RUN pnpm i --production
+RUN yarn install
 
-COPY --from=builder /home/node/app/dist ./dist
-COPY --from=builder /home/node/app/build ./build
+COPY --from=builder /home/node/dist ./dist
+COPY --from=builder /home/node/build ./build
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "./dist/server.js"]
